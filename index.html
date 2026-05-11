@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anatomie Webu — Drag & Build</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Fragment+Mono&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   ROOT & RESET
+═══════════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0c0e;
+  --panel:#111115;
+  --panel2:#16161c;
+  --border:#222230;
+  --border2:#2e2e40;
+  --html:#ff5533;
+  --css:#7c3aed;
+  --js:#f59e0b;
+  --green:#00e87a;
+  --red:#ff2d55;
+  --white:#eeeef5;
+  --dim:#555570;
+  --font-display:'Archivo Black',sans-serif;
+  --font-mono:'Fragment Mono',monospace;
+  --font-ui:'Outfit',sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--white);
+  font-family:var(--font-ui);
+  cursor:none;
+  user-select:none;
+}
+
+/* ═══════════════════════════════════════════════
+   NOISE OVERLAY
+═══════════════════════════════════════════════ */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity:.025;
+  pointer-events:none;
+  z-index:9000;
+  mix-blend-mode:overlay;
+}
+
+/* ═══════════════════════════════════════════════
+   CUSTOM CURSOR
+═══════════════════════════════════════════════ */
+#cur{
+  position:fixed;width:8px;height:8px;
+  background:var(--white);border-radius:50%;
+  pointer-events:none;z-index:9999;
+  transform:translate(-50%,-50%);
+  transition:width .12s,height .12s,background .15s;
+  mix-blend-mode:difference;
+}
+#cur-ring{
+  position:fixed;width:32px;height:32px;
+  border:1.5px solid rgba(238,238,245,.25);
+  border-radius:50%;
+  pointer-events:none;z-index:9998;
+  transform:translate(-50%,-50%);
+}
+.cursor-drag #cur{width:18px;height:18px;background:var(--green)}
+.cursor-drag #cur-ring{width:52px;height:52px;border-color:var(--green);border-style:dashed}
+.cursor-hover #cur{background:var(--css);width:14px;height:14px}
+
+/* ═══════════════════════════════════════════════
+   SCREENS
+═══════════════════════════════════════════════ */
+.screen{
+  position:fixed;inset:0;
+  opacity:0;pointer-events:none;
+  transition:opacity .5s ease;
+}
+.screen.on{opacity:1;pointer-events:all}
+
+/* ═══════════════════════════════════════════════
+   ████  INTRO  ████
+═══════════════════════════════════════════════ */
+#intro{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  overflow:hidden;
+  background:var(--bg);
+}
+
+/* Big grid lines bg */
+#intro::before{
+  content:'';
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(124,58,237,.07) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(124,58,237,.07) 1px,transparent 1px);
+  background-size:60px 60px;
+  animation:gridShift 20s linear infinite;
+}
+@keyframes gridShift{to{background-position:60px 60px}}
+
+/* Corner decoration */
+.corner{
+  position:absolute;width:140px;height:140px;
+  border-color:var(--border2);border-style:solid;
+}
+.corner-tl{top:24px;left:24px;border-width:2px 0 0 2px}
+.corner-tr{top:24px;right:24px;border-width:2px 2px 0 0}
+.corner-bl{bottom:24px;left:24px;border-width:0 0 2px 2px}
+.corner-br{bottom:24px;right:24px;border-width:0 2px 2px 0}
+
+.intro-tag{
+  font-family:var(--font-mono);font-size:.65rem;
+  letter-spacing:.3em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:1.5rem;
+  opacity:0;animation:riseIn .7s .2s ease forwards;
+}
+.intro-h{
+  font-family:var(--font-display);
+  font-size:clamp(4rem,11vw,9.5rem);
+  line-height:.88;letter-spacing:-.03em;
+  text-align:center;
+  opacity:0;animation:riseIn .8s .4s ease forwards;
+}
+.intro-h em{
+  font-style:normal;
+  -webkit-text-stroke:1.5px rgba(238,238,245,.25);
+  color:transparent;
+}
+.intro-sub{
+  margin-top:1.8rem;
+  font-size:1rem;font-weight:300;
+  color:rgba(238,238,245,.45);
+  text-align:center;max-width:480px;line-height:1.7;
+  opacity:0;animation:riseIn .7s .65s ease forwards;
+}
+
+/* Layer pills */
+.layers{
+  display:flex;gap:.75rem;margin-top:2.5rem;
+  flex-wrap:wrap;justify-content:center;
+  opacity:0;animation:riseIn .7s .85s ease forwards;
+}
+.layer{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.45rem 1rem;
+  border:1px solid;border-radius:4px;
+  font-family:var(--font-mono);font-size:.72rem;
+  font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  transition:all .25s;
+}
+.layer:hover{transform:translateY(-3px)}
+.l-html{border-color:rgba(255,85,51,.35);color:var(--html);background:rgba(255,85,51,.07)}
+.l-css {border-color:rgba(124,58,237,.35);color:var(--css);background:rgba(124,58,237,.07)}
+.l-js  {border-color:rgba(245,158,11,.35);color:var(--js); background:rgba(245,158,11,.07)}
+.layer-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+.btn-go{
+  margin-top:3rem;
+  position:relative;overflow:hidden;
+  background:var(--white);color:var(--bg);
+  border:none;
+  font-family:var(--font-display);font-size:1rem;
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:1rem 3.5rem;border-radius:3px;
+  cursor:none;
+  transition:transform .3s,box-shadow .3s;
+  opacity:0;animation:riseIn .7s 1.05s ease forwards;
+}
+.btn-go::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,var(--html),var(--css),var(--js));
+  opacity:0;transition:opacity .3s;
+}
+.btn-go span{position:relative;z-index:1}
+.btn-go:hover{transform:translateY(-4px);box-shadow:0 24px 60px rgba(124,58,237,.35)}
+.btn-go:hover::after{opacity:1}
+.btn-go:hover span{color:var(--white)}
+
+@keyframes riseIn{
+  from{opacity:0;transform:translateY(20px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* ═══════════════════════════════════════════════
+   ████  GAME LAYOUT  ████
+═══════════════════════════════════════════════ */
+#game{
+  display:grid;
+  grid-template-rows:auto 1fr;
+  grid-template-columns:1fr 420px;
+  grid-template-areas:
+    "topbar topbar"
+    "left   right";
+  background:var(--bg);
+  height:100vh;
+}
+
+/* ─── TOP BAR ─── */
+.topbar{
+  grid-area:topbar;
+  display:flex;align-items:center;
+  justify-content:space-between;
+  padding:0 1.5rem;
+  height:52px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
+  z-index:100;
+}
+.topbar-logo{
+  font-family:var(--font-display);
+  font-size:1.1rem;letter-spacing:.04em;
+}
+.topbar-logo span{opacity:.35}
+.topbar-center{
+  display:flex;align-items:center;gap:1.5rem;
+}
+.level-label{
+  font-family:var(--font-mono);font-size:.7rem;
+  letter-spacing:.15em;text-transform:uppercase;
+  color:var(--dim);
+}
+.level-dots{display:flex;gap:.35rem}
+.level-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--border2);
+  transition:background .3s,box-shadow .3s;
+}
+.level-dot.done{background:var(--green);box-shadow:0 0 8px var(--green)}
+.level-dot.active{background:var(--white);box-shadow:0 0 8px rgba(238,238,245,.5)}
+
+.topbar-score{
+  font-family:var(--font-mono);font-size:.8rem;
+  color:var(--js);letter-spacing:.1em;
+}
+
+/* ─── LEFT PANEL (drag area) ─── */
+.left-panel{
+  grid-area:left;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  border-right:1px solid var(--border);
+}
+
+/* Level header */
+.level-header{
+  padding:1.25rem 1.5rem .75rem;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  background:var(--panel);
+}
+.level-eyebrow{
+  font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.25em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:.4rem;
+}
+.level-title{
+  font-family:var(--font-display);
+  font-size:clamp(1.2rem,2.5vw,1.7rem);
+  line-height:1;letter-spacing:.02em;
+}
+.level-desc{
+  margin-top:.5rem;
+  font-size:.82rem;font-weight:300;
+  color:rgba(238,238,245,.45);
+  line-height:1.5;
+}
+
+/* Drop zones */
+.drop-zones{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:0;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.drop-zone{
+  padding:.85rem .75rem;
+  border-right:1px solid var(--border);
+  min-height:120px;
+  transition:background .25s;
+  position:relative;
+}
+.drop-zone:last-child{border-right:none}
+.dz-header{
+  display:flex;align-items:center;gap:.4rem;
+  margin-bottom:.6rem;
+  font-family:var(--font-mono);font-size:.62rem;
+  font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+}
+.dz-dot{width:6px;height:6px;border-radius:50%}
+.dz-html .dz-dot,.dz-html .dz-header{color:var(--html)}
+.dz-css  .dz-dot,.dz-css  .dz-header{color:var(--css)}
+.dz-js   .dz-dot,.dz-js   .dz-header{color:var(--js)}
+.dz-dot{background:currentColor}
+
+.drop-zone.drag-over{
+  background:rgba(238,238,245,.04);
+}
+.dz-html.drag-over{background:rgba(255,85,51,.06)}
+.dz-css.drag-over {background:rgba(124,58,237,.06)}
+.dz-js.drag-over  {background:rgba(245,158,11,.06)}
+
+.dz-placeholder{
+  font-family:var(--font-mono);font-size:.65rem;
+  color:var(--border2);
+  line-height:1.6;
+  pointer-events:none;
+}
+
+/* Dropped chips inside zones */
+.dropped-chip{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.25rem .5rem;
+  border-radius:3px;
+  font-family:var(--font-mono);font-size:.65rem;
+  margin:2px;cursor:none;
+  border:1px solid;
+  transition:all .2s;
+}
+.dropped-chip:hover{opacity:.7;transform:translateY(-1px)}
+.dropped-chip.cat-html{color:var(--html);border-color:rgba(255,85,51,.35);background:rgba(255,85,51,.1)}
+.dropped-chip.cat-css {color:var(--css); border-color:rgba(124,58,237,.35);background:rgba(124,58,237,.1)}
+.dropped-chip.cat-js  {color:var(--js);  border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.1)}
+.dropped-chip.correct::after{content:'✓';margin-left:.2rem;color:var(--green)}
+.dropped-chip.wrong::after  {content:'✗';margin-left:.2rem;color:var(--red)}
+
+/* Fragment pool */
+.pool-label{
+  padding:.6rem 1.5rem .4rem;
+  font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dim);flex-shrink:0;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
+}
+.fragment-pool{
+  flex:1;overflow-y:auto;
+  padding:1rem 1.25rem;
+  display:flex;flex-wrap:wrap;gap:.6rem;
+  align-content:flex-start;
+  scrollbar-width:thin;
+  scrollbar-color:var(--border) transparent;
+}
+
+/* Fragment card */
+.fragment{
+  background:var(--panel2);
+  border:1px solid var(--border2);
+  border-radius:4px;
+  padding:.55rem .85rem;
+  font-family:var(--font-mono);
+  font-size:.75rem;line-height:1.5;
+  color:rgba(238,238,245,.8);
+  cursor:grab;
+  transition:all .22s;
+  position:relative;
+  max-width:100%;
+  word-break:break-all;
+}
+.fragment::before{
+  content:'⠿';
+  position:absolute;top:.35rem;right:.5rem;
+  font-size:.6rem;color:var(--border2);
+  transition:color .2s;
+}
+.fragment:hover{
+  border-color:var(--border2);
+  background:#1c1c25;
+  transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+.fragment:hover::before{color:var(--dim)}
+.fragment.dragging{
+  opacity:.3;transform:scale(.95);
+}
+.fragment.used{display:none}
+
+/* Check button */
+.check-bar{
+  padding:.85rem 1.25rem;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:.75rem;
+  background:var(--panel);
+  flex-shrink:0;
+}
+.btn-check{
+  flex:1;background:var(--white);color:var(--bg);
+  border:none;border-radius:3px;
+  font-family:var(--font-display);font-size:.85rem;
+  letter-spacing:.1em;text-transform:uppercase;
+  padding:.75rem;cursor:none;
+  transition:all .25s;position:relative;overflow:hidden;
+}
+.btn-check::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,var(--green),#00c4ff);
+  opacity:0;transition:opacity .25s;
+}
+.btn-check span{position:relative;z-index:1}
+.btn-check:hover{box-shadow:0 8px 32px rgba(0,232,122,.25)}
+.btn-check:hover::after{opacity:1}
+.btn-check:hover span{color:var(--bg)}
+.btn-check:disabled{opacity:.3;cursor:default}
+
+.btn-reset-level{
+  background:transparent;
+  border:1px solid var(--border2);
+  color:var(--dim);
+  border-radius:3px;
+  font-family:var(--font-mono);font-size:.65rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:.75rem .9rem;cursor:none;
+  transition:all .2s;
+}
+.btn-reset-level:hover{border-color:var(--red);color:var(--red)}
+
+/* ─── RIGHT PANEL (preview) ─── */
+.right-panel{
+  grid-area:right;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  background:var(--panel);
+}
+.preview-header{
+  padding:.7rem 1rem;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:.75rem;
+  flex-shrink:0;
+}
+.preview-dots{display:flex;gap:.35rem}
+.pd{width:10px;height:10px;border-radius:50%}
+.pd-r{background:#ff5f57}.pd-y{background:#febc2e}.pd-g{background:#28c840}
+.preview-title{
+  font-family:var(--font-mono);font-size:.65rem;
+  letter-spacing:.15em;text-transform:uppercase;
+  color:var(--dim);
+}
+
+.preview-frame{
+  flex:1;overflow:hidden;
+  position:relative;
+}
+.preview-frame iframe{
+  width:100%;height:100%;
+  border:none;
+  background:#fff;
+}
+
+/* Layers panel */
+.layers-panel{
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+}
+.layers-tab-row{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  border-bottom:1px solid var(--border);
+}
+.layer-tab{
+  padding:.5rem;
+  font-family:var(--font-mono);font-size:.6rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  text-align:center;cursor:none;
+  color:var(--dim);
+  border-right:1px solid var(--border);
+  transition:all .2s;
+  position:relative;
+}
+.layer-tab:last-child{border-right:none}
+.layer-tab.active-tab{color:var(--white)}
+.layer-tab.html-tab.active-tab::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--html)}
+.layer-tab.css-tab.active-tab::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--css)}
+.layer-tab.js-tab.active-tab::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--js)}
+
+.layer-code{
+  height:130px;overflow-y:auto;
+  padding:.65rem .85rem;
+  font-family:var(--font-mono);font-size:.7rem;
+  line-height:1.7;color:rgba(238,238,245,.5);
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+  display:none;
+}
+.layer-code.visible{display:block}
+
+/* ─── RESULT OVERLAY ─── */
+.level-result{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:rgba(12,12,14,.92);
+  backdrop-filter:blur(12px);
+  z-index:200;
+  opacity:0;pointer-events:none;
+  transition:opacity .4s;
+}
+.level-result.show{opacity:1;pointer-events:all}
+.lr-icon{font-size:3.5rem;margin-bottom:.75rem;animation:popIn .5s cubic-bezier(.4,0,.2,1)}
+@keyframes popIn{
+  from{transform:scale(0) rotate(-20deg)}
+  to{transform:scale(1) rotate(0deg)}
+}
+.lr-title{
+  font-family:var(--font-display);
+  font-size:2.5rem;letter-spacing:.04em;
+  margin-bottom:.35rem;
+}
+.lr-sub{
+  font-family:var(--font-mono);font-size:.75rem;
+  letter-spacing:.1em;color:var(--dim);
+  margin-bottom:2rem;text-align:center;max-width:300px;line-height:1.6;
+}
+.lr-btns{display:flex;gap:.75rem}
+.lr-btn{
+  padding:.7rem 1.75rem;
+  border-radius:3px;
+  font-family:var(--font-display);font-size:.85rem;
+  letter-spacing:.08em;text-transform:uppercase;
+  cursor:none;border:1px solid;
+  transition:all .25s;
+}
+.lr-btn-next{
+  background:var(--white);color:var(--bg);
+  border-color:var(--white);
+}
+.lr-btn-next:hover{background:var(--green);border-color:var(--green)}
+.lr-btn-retry{
+  background:transparent;color:var(--dim);
+  border-color:var(--border2);
+}
+.lr-btn-retry:hover{color:var(--white);border-color:var(--white)}
+
+/* ═══════════════════════════════════════════════
+   RESULTS SCREEN
+═══════════════════════════════════════════════ */
+#results{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:var(--bg);overflow:hidden;
+}
+#results::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(124,58,237,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(124,58,237,.05) 1px,transparent 1px);
+  background-size:80px 80px;
+}
+.results-inner{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;
+  align-items:center;gap:1.5rem;
+  text-align:center;padding:2rem;
+  max-width:680px;width:100%;
+}
+.res-big{
+  font-family:var(--font-display);
+  font-size:clamp(5rem,14vw,11rem);
+  line-height:.85;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--html) 0%,var(--css) 50%,var(--js) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:riseIn .8s ease both;
+}
+.res-score{
+  font-family:var(--font-mono);font-size:.8rem;
+  letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dim);
+  animation:riseIn .7s .15s ease both;
+}
+.res-score strong{
+  display:block;font-family:var(--font-display);
+  font-size:2.5rem;letter-spacing:.04em;
+  color:var(--white);margin-bottom:.25rem;
+}
+.res-msg{
+  font-size:.95rem;font-weight:300;
+  color:rgba(238,238,245,.5);
+  line-height:1.7;max-width:420px;
+  animation:riseIn .7s .3s ease both;
+}
+.res-levels{
+  display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;
+  animation:riseIn .7s .45s ease both;
+}
+.res-level-card{
+  padding:1rem 1.5rem;
+  border:1px solid var(--border2);
+  border-radius:4px;
+  background:var(--panel);
+  display:flex;flex-direction:column;align-items:center;gap:.3rem;
+  min-width:110px;
+}
+.rlc-title{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)}
+.rlc-score{font-family:var(--font-display);font-size:1.8rem;letter-spacing:.04em}
+.rlc-star{font-size:1rem}
+
+.res-actions{
+  display:flex;gap:.75rem;
+  animation:riseIn .7s .6s ease both;
+}
+.res-btn{
+  padding:.85rem 2rem;border-radius:3px;
+  font-family:var(--font-display);font-size:.85rem;
+  letter-spacing:.1em;text-transform:uppercase;
+  cursor:none;border:1px solid;transition:all .3s;
+}
+.res-btn-primary{
+  background:var(--white);color:var(--bg);border-color:var(--white);
+}
+.res-btn-primary:hover{background:var(--green);border-color:var(--green)}
+.res-btn-sec{
+  background:transparent;color:var(--dim);border-color:var(--border2);
+}
+.res-btn-sec:hover{color:var(--white);border-color:var(--white)}
+
+/* ═══════════════════════════════════════════════
+   DRAG GHOST
+═══════════════════════════════════════════════ */
+#drag-ghost{
+  position:fixed;
+  pointer-events:none;z-index:8000;
+  background:var(--panel2);
+  border:1px solid var(--green);
+  border-radius:4px;
+  padding:.45rem .75rem;
+  font-family:var(--font-mono);font-size:.72rem;
+  color:var(--green);
+  box-shadow:0 12px 40px rgba(0,232,122,.25);
+  max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transform:translate(-50%,-50%) rotate(1.5deg);
+  opacity:0;transition:opacity .15s;
+}
+#drag-ghost.show{opacity:1}
+
+/* ═══════════════════════════════════════════════
+   FLASH OVERLAY
+═══════════════════════════════════════════════ */
+#flash{
+  position:fixed;inset:0;z-index:7000;
+  pointer-events:none;opacity:0;
+  transition:opacity .15s;
+}
+#flash.show{opacity:1}
+
+/* ═══════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════ */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="cur"></div>
+<div id="cur-ring"></div>
+<div id="drag-ghost"></div>
+<div id="flash"></div>
+
+<!-- ══════════════════════════════════════
+     INTRO
+══════════════════════════════════════ -->
+<div id="intro" class="screen on">
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <p class="intro-tag">// web · html · css · javascript</p>
+  <h1 class="intro-h">ANATOMIE<br><em>WEBU</em></h1>
+  <p class="intro-sub">Přetahuj fragmenty kódu na správné místo a sleduj, jak se stránka staví před tvojima očima.</p>
+  <div class="layers">
+    <span class="layer l-html"><span class="layer-dot"></span>HTML — Struktura</span>
+    <span class="layer l-css"><span class="layer-dot"></span>CSS — Vzhled</span>
+    <span class="layer l-js"><span class="layer-dot"></span>JS — Chování</span>
+  </div>
+  <button class="btn-go" onclick="startGame()"><span>Začít stavět →</span></button>
+</div>
+
+<!-- ══════════════════════════════════════
+     GAME
+══════════════════════════════════════ -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <div class="topbar-logo">WEB<span>QUIZ</span></div>
+    <div class="topbar-center">
+      <span class="level-label">Úrovně</span>
+      <div class="level-dots" id="level-dots"></div>
+    </div>
+    <div class="topbar-score" id="topbar-score">SKÓRE: 0</div>
+  </div>
+
+  <!-- LEFT -->
+  <div class="left-panel">
+    <div class="level-header">
+      <div class="level-eyebrow" id="lv-eyebrow">Úroveň 1 ze 4</div>
+      <div class="level-title" id="lv-title">Základ stránky</div>
+      <div class="level-desc" id="lv-desc">Přetáhni každý fragment kódu do správného jazyka.</div>
+    </div>
+
+    <div class="drop-zones">
+      <div class="drop-zone dz-html" id="dz-html" ondragover="onDragOver(event,'html')" ondragleave="onDragLeave(event,'html')" ondrop="onDrop(event,'html')">
+        <div class="dz-header"><span class="dz-dot"></span>HTML</div>
+        <div class="dz-placeholder" id="ph-html">Struktura stránky…</div>
+      </div>
+      <div class="drop-zone dz-css" id="dz-css" ondragover="onDragOver(event,'css')" ondragleave="onDragLeave(event,'css')" ondrop="onDrop(event,'css')">
+        <div class="dz-header"><span class="dz-dot"></span>CSS</div>
+        <div class="dz-placeholder" id="ph-css">Styly a vzhled…</div>
+      </div>
+      <div class="drop-zone dz-js" id="dz-js" ondragover="onDragOver(event,'js')" ondragleave="onDragLeave(event,'js')" ondrop="onDrop(event,'js')">
+        <div class="dz-header"><span class="dz-dot"></span>JS</div>
+        <div class="dz-placeholder" id="ph-js">Interaktivita…</div>
+      </div>
+    </div>
+
+    <div class="pool-label">// Fragmenty — přetáhni na správné místo</div>
+    <div class="fragment-pool" id="fragment-pool"></div>
+
+    <div class="check-bar">
+      <button class="btn-check" id="btn-check" onclick="checkLevel()" disabled>
+        <span>Zkontrolovat →</span>
+      </button>
+      <button class="btn-reset-level" onclick="resetLevel()">Reset</button>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <div class="preview-header">
+      <div class="preview-dots"><div class="pd pd-r"></div><div class="pd pd-y"></div><div class="pd pd-g"></div></div>
+      <span class="preview-title">Živý náhled</span>
+    </div>
+    <div class="preview-frame" id="preview-frame">
+      <iframe id="preview-iframe" title="náhled"></iframe>
+      <div class="level-result" id="level-result">
+        <div class="lr-icon" id="lr-icon">🏗️</div>
+        <div class="lr-title" id="lr-title">Hotovo!</div>
+        <div class="lr-sub" id="lr-sub">Všechny fragmenty na správném místě.</div>
+        <div class="lr-btns">
+          <button class="lr-btn lr-btn-retry" onclick="resetLevel()">Zkusit znovu</button>
+          <button class="lr-btn lr-btn-next" id="lr-btn-next" onclick="nextLevel()">Další úroveň →</button>
+        </div>
+      </div>
+    </div>
+    <div class="layers-panel">
+      <div class="layers-tab-row">
+        <div class="layer-tab html-tab active-tab" onclick="showCodeTab('html',this)">HTML</div>
+        <div class="layer-tab css-tab" onclick="showCodeTab('css',this)">CSS</div>
+        <div class="layer-tab js-tab" onclick="showCodeTab('js',this)">JS</div>
+      </div>
+      <div class="layer-code visible" id="code-html">// Sem se zobrazí tvůj HTML kód…</div>
+      <div class="layer-code" id="code-css">// Sem se zobrazí tvůj CSS kód…</div>
+      <div class="layer-code" id="code-js">// Sem se zobrazí tvůj JS kód…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     RESULTS
+══════════════════════════════════════ -->
+<div id="results" class="screen">
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+  <div class="results-inner">
+    <div class="res-big" id="res-rank">MASTER</div>
+    <div class="res-score"><strong id="res-score-num">4/4</strong>úrovní dokončeno</div>
+    <p class="res-msg" id="res-msg">Výjimečný výkon. Stavíš web jak profík.</p>
+    <div class="res-levels" id="res-levels"></div>
+    <div class="res-actions">
+      <button class="res-btn res-btn-primary" onclick="fullRestart()">Hrát znovu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   CURSOR
+══════════════════════════════════════ */
+const curEl=document.getElementById('cur'),ringEl=document.getElementById('cur-ring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{
+  mx=e.clientX;my=e.clientY;
+  curEl.style.left=mx+'px';curEl.style.top=my+'px';
+  if(dragging&&ghostEl){ghostEl.style.left=mx+'px';ghostEl.style.top=my+'px';}
+});
+(function rl(){
+  rx+=(mx-rx)*.1;ry+=(my-ry)*.1;
+  ringEl.style.left=rx+'px';ringEl.style.top=ry+'px';
+  requestAnimationFrame(rl);
+})();
+document.addEventListener('mouseover',e=>{
+  if(e.target.matches('button,.fragment,.layer-tab,.dropped-chip'))document.body.classList.add('cursor-hover');
+  else document.body.classList.remove('cursor-hover');
+});
+
+/* ══════════════════════════════════════
+   LEVELS DATA
+══════════════════════════════════════ */
+const LEVELS=[
+  {
+    title:'Základ stránky',
+    desc:'Roztřiď základní stavební bloky — každý patří do jiného jazyka.',
+    fragments:[
+      {id:'f1',cat:'html',code:'<h1>Ahoj světe!</h1>'},
+      {id:'f2',cat:'html',code:'<p>Toto je odstavec textu.</p>'},
+      {id:'f3',cat:'html',code:'<button id="btn">Klikni</button>'},
+      {id:'f4',cat:'css', code:'h1 { color: #e85d04; }'},
+      {id:'f5',cat:'css', code:'p { font-size: 18px; }'},
+      {id:'f6',cat:'css', code:'body { background: #f0f0f0; }'},
+      {id:'f7',cat:'js',  code:"document.getElementById('btn')"},
+      {id:'f8',cat:'js',  code:"console.log('Stránka načtena')"},
+      {id:'f9',cat:'js',  code:"btn.addEventListener('click', fn)"},
+    ],
+    preview:{
+      html:'<h1>Ahoj světe!</h1><p>Toto je odstavec textu.</p><button id="btn">Klikni</button>',
+      css:'body{font-family:sans-serif;padding:2rem;background:#f0f0f0}h1{color:#e85d04;margin-bottom:.5rem}p{font-size:18px;margin-bottom:1rem}button{padding:.5rem 1.5rem;border:none;background:#e85d04;color:#fff;border-radius:4px;cursor:pointer;font-size:1rem}button:hover{background:#c0440e}',
+      js:"const btn=document.getElementById('btn');btn.addEventListener('click',function(){alert('Kliknuto! 👋')});"
+    }
+  },
+  {
+    title:'Navigace & Layout',
+    desc:'Sestav navigační lištu s flexboxem a přidej interaktivitu menu.',
+    fragments:[
+      {id:'g1',cat:'html',code:'<nav class="navbar">'},
+      {id:'g2',cat:'html',code:'<a href="#domu">Domů</a>'},
+      {id:'g3',cat:'html',code:'<a href="#kontakt">Kontakt</a>'},
+      {id:'g4',cat:'html',code:'<div class="hamburger" id="hbg">☰</div>'},
+      {id:'g5',cat:'css', code:'.navbar { display: flex; }'},
+      {id:'g6',cat:'css', code:'justify-content: space-between;'},
+      {id:'g7',cat:'css', code:'.navbar a { text-decoration: none; }'},
+      {id:'g8',cat:'js',  code:"document.getElementById('hbg')"},
+      {id:'g9',cat:'js',  code:".classList.toggle('open')"},
+      {id:'g10',cat:'js', code:"hbg.addEventListener('click', fn)"},
+    ],
+    preview:{
+      html:'<nav class="navbar"><div class="logo">LOGO</div><div class="links"><a href="#">Domů</a><a href="#">O nás</a><a href="#">Kontakt</a></div><div class="hamburger" id="hbg">☰</div></nav><main class="hero"><h2>Vítej na stránce</h2><p>Klikni na hamburger menu nahoře.</p></main>',
+      css:'*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif}.navbar{display:flex;justify-content:space-between;align-items:center;padding:1rem 2rem;background:#1a1a2e;color:#fff}.logo{font-weight:800;font-size:1.2rem;color:#7c3aed}.links a{color:#fff;text-decoration:none;margin-left:1.5rem;font-size:.9rem;transition:color .2s}.links a:hover{color:#7c3aed}.hamburger{font-size:1.4rem;cursor:pointer;display:none;color:#fff}.hero{padding:3rem 2rem;text-align:center}h2{font-size:2rem;margin-bottom:.5rem}p{color:#666}@media(max-width:600px){.links{display:none}.links.open{display:flex;flex-direction:column;position:fixed;top:60px;left:0;right:0;background:#1a1a2e;padding:1rem}.hamburger{display:block}}',
+      js:"const hbg=document.getElementById('hbg');hbg.addEventListener('click',function(){document.querySelector('.links').classList.toggle('open')});"
+    }
+  },
+  {
+    title:'Formulář & Validace',
+    desc:'Postav kontaktní formulář a přidej JavaScriptovou validaci.',
+    fragments:[
+      {id:'h1',cat:'html',code:'<form id="form">'},
+      {id:'h2',cat:'html',code:'<input type="email" id="email" placeholder="Email">'},
+      {id:'h3',cat:'html',code:'<textarea id="msg" placeholder="Zpráva"></textarea>'},
+      {id:'h4',cat:'html',code:'<button type="submit">Odeslat</button>'},
+      {id:'h5',cat:'css', code:'input, textarea { border: 2px solid #ddd; }'},
+      {id:'h6',cat:'css', code:'input:focus { border-color: #7c3aed; }'},
+      {id:'h7',cat:'css', code:'.error { border-color: red !important; }'},
+      {id:'h8',cat:'js',  code:"form.addEventListener('submit', validate)"},
+      {id:'h9',cat:'js',  code:"if (email.value === '') { ... }"},
+      {id:'h10',cat:'js', code:"email.classList.add('error')"},
+    ],
+    preview:{
+      html:'<div class="container"><h2>Kontaktuj nás</h2><form id="form"><label>Email</label><input type="email" id="email" placeholder="tvuj@email.cz"><label>Zpráva</label><textarea id="msg" rows="4" placeholder="Napiš zprávu…"></textarea><button type="button" id="send">Odeslat →</button><p id="result" class="result"></p></form></div>',
+      css:'*{box-sizing:border-box}body{font-family:sans-serif;background:#f8f8fc;display:flex;justify-content:center;padding:2rem}.container{background:#fff;padding:2rem;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.1);width:100%;max-width:400px}h2{margin-bottom:1.5rem;color:#1a1a2e}label{display:block;font-size:.85rem;font-weight:600;color:#666;margin-bottom:.25rem;margin-top:.75rem}input,textarea{width:100%;padding:.65rem .85rem;border:2px solid #e0e0e0;border-radius:4px;font-size:.9rem;font-family:inherit;transition:border-color .2s;outline:none;resize:vertical}input:focus,textarea:focus{border-color:#7c3aed}input.error,textarea.error{border-color:#ff2d55 !important;background:#fff5f7}button{margin-top:1.25rem;width:100%;padding:.75rem;background:#7c3aed;color:#fff;border:none;border-radius:4px;font-size:1rem;cursor:pointer;transition:background .2s}button:hover{background:#6d28d9}.result{margin-top:.75rem;font-size:.85rem;text-align:center}.success{color:#059669}.fail{color:#ff2d55}',
+      js:"const form=document.getElementById('form');const email=document.getElementById('email');const msg=document.getElementById('msg');const result=document.getElementById('result');document.getElementById('send').addEventListener('click',function(){let ok=true;email.classList.remove('error');msg.classList.remove('error');if(!email.value||!email.value.includes('@')){email.classList.add('error');ok=false;}if(!msg.value.trim()){msg.classList.add('error');ok=false;}if(ok){result.textContent='✓ Zpráva odeslána!';result.className='result success';email.value='';msg.value='';}else{result.textContent='✗ Vyplň všechna pole správně.';result.className='result fail';}});"
+    }
+  },
+  {
+    title:'Karta produktu',
+    desc:'Sestav kompletní product card s animacemi a DOM manipulací.',
+    fragments:[
+      {id:'i1',cat:'html',code:'<div class="card">'},
+      {id:'i2',cat:'html',code:'<img src="…" alt="Produkt">'},
+      {id:'i3',cat:'html',code:'<span class="badge">NOVÉ</span>'},
+      {id:'i4',cat:'html',code:'<button class="add-cart" id="ac">Do košíku</button>'},
+      {id:'i5',cat:'css', code:'.card { border-radius: 12px; }'},
+      {id:'i6',cat:'css', code:'.card:hover { transform: translateY(-8px); }'},
+      {id:'i7',cat:'css', code:'transition: transform 0.3s ease;'},
+      {id:'i8',cat:'js',  code:"document.getElementById('ac')"},
+      {id:'i9',cat:'js',  code:".textContent = 'Přidáno! ✓'"},
+      {id:'i10',cat:'js', code:"ac.addEventListener('click', fn)"},
+    ],
+    preview:{
+      html:'<div class="page"><div class="card"><div class="card-img"><span class="badge">NOVÉ</span><div class="img-ph">📱</div></div><div class="card-body"><h3>iPhone 16 Pro</h3><p class="sub">Titanium · 256 GB</p><p class="price">37 990 Kč</p><div class="row"><span class="stars">★★★★★</span><span class="count">(2 841)</span></div><button class="add-cart" id="ac">Do košíku →</button></div></div></div>',
+      css:'*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;background:linear-gradient(135deg,#0f0f1a,#1a0f2e);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}.card{background:#fff;border-radius:16px;overflow:hidden;width:260px;box-shadow:0 20px 60px rgba(0,0,0,.4);transition:transform .3s ease;}.card:hover{transform:translateY(-8px)}.card-img{background:linear-gradient(135deg,#1a1a2e,#7c3aed);padding:2.5rem;display:flex;align-items:center;justify-content:center;position:relative}.img-ph{font-size:5rem}.badge{position:absolute;top:.75rem;right:.75rem;background:#ff5533;color:#fff;font-size:.65rem;font-weight:700;letter-spacing:.1em;padding:.25rem .5rem;border-radius:100px;text-transform:uppercase}.card-body{padding:1.25rem}.card-body h3{font-size:1.1rem;font-weight:700;margin-bottom:.2rem}.sub{font-size:.8rem;color:#999;margin-bottom:.75rem}.price{font-size:1.4rem;font-weight:800;color:#7c3aed;margin-bottom:.5rem}.row{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem}.stars{color:#f59e0b;font-size:.85rem}.count{font-size:.75rem;color:#999}.add-cart{width:100%;padding:.7rem;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .2s}.add-cart:hover{background:#6d28d9}.add-cart.added{background:#059669}',
+      js:"const ac=document.getElementById('ac');ac.addEventListener('click',function(){if(ac.classList.contains('added'))return;ac.textContent='Přidáno! ✓';ac.classList.add('added');setTimeout(()=>{ac.textContent='Do košíku →';ac.classList.remove('added');},2000);});"
+    }
+  }
+];
+
+/* ══════════════════════════════════════
+   GAME STATE
+══════════════════════════════════════ */
+let currentLevel=0;
+let score=0;
+let levelResults=[];
+let dropped={html:[],css:[],js:[]};
+let dragging=null;
+const ghostEl=document.getElementById('drag-ghost');
+
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+/* ══════════════════════════════════════
+   INIT GAME
+══════════════════════════════════════ */
+function startGame(){
+  switchScreen('intro','game');
+  currentLevel=0;score=0;levelResults=[];
+  buildLevelDots();
+  loadLevel(0);
+}
+
+function buildLevelDots(){
+  const c=document.getElementById('level-dots');
+  c.innerHTML=LEVELS.map((_,i)=>`<div class="level-dot" id="ld-${i}"></div>`).join('');
+  document.getElementById('ld-0').classList.add('active');
+}
+
+function updateDots(){
+  LEVELS.forEach((_,i)=>{
+    const d=document.getElementById('ld-'+i);
+    if(!d)return;
+    d.className='level-dot';
+    if(i<currentLevel)d.classList.add('done');
+    else if(i===currentLevel)d.classList.add('active');
+  });
+}
+
+/* ══════════════════════════════════════
+   LOAD LEVEL
+══════════════════════════════════════ */
+function loadLevel(idx){
+  const lv=LEVELS[idx];
+  dropped={html:[],css:[],js:[]};
+  document.getElementById('level-result').classList.remove('show');
+  document.getElementById('btn-check').disabled=true;
+
+  document.getElementById('lv-eyebrow').textContent=`Úroveň ${idx+1} ze ${LEVELS.length}`;
+  document.getElementById('lv-title').textContent=lv.title;
+  document.getElementById('lv-desc').textContent=lv.desc;
+  document.getElementById('topbar-score').textContent=`SKÓRE: ${score}`;
+  updateDots();
+
+  // Clear drop zones (keep headers)
+  ['html','css','js'].forEach(cat=>{
+    const dz=document.getElementById('dz-'+cat);
+    Array.from(dz.querySelectorAll('.dropped-chip')).forEach(c=>c.remove());
+    document.getElementById('ph-'+cat).style.display='block';
+  });
+
+  // Render fragments
+  const pool=document.getElementById('fragment-pool');
+  pool.innerHTML='';
+  const frags=shuffle([...lv.fragments]);
+  frags.forEach(f=>{
+    const el=document.createElement('div');
+    el.className='fragment';
+    el.id='frag-'+f.id;
+    el.draggable=true;
+    el.dataset.fid=f.id;
+    el.dataset.cat=f.cat;
+    el.textContent=f.code;
+    el.addEventListener('dragstart',e=>dragStart(e,f));
+    el.addEventListener('dragend',dragEnd);
+    // Touch support
+    el.addEventListener('touchstart',e=>touchStart(e,f),{passive:true});
+    el.addEventListener('touchmove',touchMove,{passive:false});
+    el.addEventListener('touchend',touchEnd);
+    pool.appendChild(el);
+  });
+
+  updatePreview();
+  updateCodeTabs();
+}
+
+/* ══════════════════════════════════════
+   DRAG & DROP (Mouse)
+══════════════════════════════════════ */
+let dragData=null;
+function dragStart(e,f){
+  dragData=f;dragging=true;
+  document.body.classList.add('cursor-drag');
+  ghostEl.textContent=f.code;ghostEl.classList.add('show');
+  e.dataTransfer.effectAllowed='move';
+  setTimeout(()=>{
+    const el=document.getElementById('frag-'+f.id);
+    if(el)el.classList.add('dragging');
+  },0);
+}
+function dragEnd(){
+  dragging=false;dragData=null;
+  document.body.classList.remove('cursor-drag');
+  ghostEl.classList.remove('show');
+  document.querySelectorAll('.fragment.dragging').forEach(el=>el.classList.remove('dragging'));
+}
+function onDragOver(e,cat){
+  e.preventDefault();e.dataTransfer.dropEffect='move';
+  document.getElementById('dz-'+cat).classList.add('drag-over');
+}
+function onDragLeave(e,cat){
+  document.getElementById('dz-'+cat).classList.remove('drag-over');
+}
+function onDrop(e,cat){
+  e.preventDefault();
+  document.getElementById('dz-'+cat).classList.remove('drag-over');
+  if(!dragData)return;
+  placeFrag(dragData,cat);
+  dragEnd();
+}
+
+/* ══════════════════════════════════════
+   TOUCH DRAG
+══════════════════════════════════════ */
+let touchFrag=null,touchGhostShown=false;
+function touchStart(e,f){
+  touchFrag=f;dragging=true;
+  document.body.classList.add('cursor-drag');
+  ghostEl.textContent=f.code;
+  ghostEl.style.left=e.touches[0].clientX+'px';
+  ghostEl.style.top=e.touches[0].clientY+'px';
+  ghostEl.classList.add('show');
+  const el=document.getElementById('frag-'+f.id);
+  if(el)el.classList.add('dragging');
+}
+function touchMove(e){
+  e.preventDefault();
+  const t=e.touches[0];
+  ghostEl.style.left=t.clientX+'px';
+  ghostEl.style.top=t.clientY+'px';
+  mx=t.clientX;my=t.clientY;
+}
+function touchEnd(e){
+  ghostEl.classList.remove('show');
+  document.body.classList.remove('cursor-drag');
+  if(!touchFrag)return;
+  const t=e.changedTouches[0];
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  let dz=el?.closest('.drop-zone');
+  if(dz){
+    const cat=dz.classList.contains('dz-html')?'html':dz.classList.contains('dz-css')?'css':'js';
+    placeFrag(touchFrag,cat);
+  }
+  dragging=false;
+  document.querySelectorAll('.fragment.dragging').forEach(e=>e.classList.remove('dragging'));
+  touchFrag=null;
+}
+
+/* ══════════════════════════════════════
+   PLACE FRAGMENT
+══════════════════════════════════════ */
+function placeFrag(f,zone){
+  // Remove from other zones if already placed
+  ['html','css','js'].forEach(cat=>{
+    dropped[cat]=dropped[cat].filter(x=>x.id!==f.id);
+    const old=document.querySelector(`.dropped-chip[data-fid="${f.id}"]`);
+    if(old)old.remove();
+  });
+
+  dropped[zone].push(f);
+
+  // Update placeholder visibility
+  document.getElementById('ph-'+zone).style.display='none';
+
+  // Add chip to zone
+  const dz=document.getElementById('dz-'+zone);
+  const chip=document.createElement('span');
+  chip.className=`dropped-chip cat-${zone}`;
+  chip.dataset.fid=f.id;
+  chip.textContent=f.code.length>28?f.code.slice(0,26)+'…':f.code;
+  chip.title=f.code;
+  chip.draggable=true;
+  chip.addEventListener('click',()=>returnFrag(f));
+  chip.addEventListener('dragstart',e=>{dragData=f;dragging=true;document.body.classList.add('cursor-drag');ghostEl.textContent=f.code;ghostEl.classList.add('show');chip.remove();dropped[zone]=dropped[zone].filter(x=>x.id!==f.id);if(!dropped[zone].length)document.getElementById('ph-'+zone).style.display='block';});
+  dz.appendChild(chip);
+
+  // Hide from pool
+  const poolEl=document.getElementById('frag-'+f.id);
+  if(poolEl)poolEl.classList.add('used');
+
+  // Check if all placed
+  const total=LEVELS[currentLevel].fragments.length;
+  const totalPlaced=dropped.html.length+dropped.css.length+dropped.js.length;
+  document.getElementById('btn-check').disabled=totalPlaced<total;
+
+  updatePreview();
+  updateCodeTabs();
+}
+
+function returnFrag(f){
+  ['html','css','js'].forEach(cat=>{
+    dropped[cat]=dropped[cat].filter(x=>x.id!==f.id);
+    const old=document.querySelector(`.dropped-chip[data-fid="${f.id}"]`);
+    if(old){old.remove();}
+    if(!dropped[cat].length)document.getElementById('ph-'+cat).style.display='block';
+  });
+  const poolEl=document.getElementById('frag-'+f.id);
+  if(poolEl)poolEl.classList.remove('used');
+  updatePreview();updateCodeTabs();
+  document.getElementById('btn-check').disabled=true;
+}
+
+/* ══════════════════════════════════════
+   LIVE PREVIEW
+══════════════════════════════════════ */
+function updatePreview(){
+  const lv=LEVELS[currentLevel];
+  // Build partial HTML from what's placed correctly in html zone
+  const htmlFrags=dropped.html.map(f=>f.code).join('\n');
+  const cssFrags=dropped.css.map(f=>f.code).join('\n');
+  const jsFrags=dropped.js.map(f=>f.code).join('\n');
+
+  // Show full target preview blended with placed fragments
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    body{font-family:sans-serif;margin:0;padding:0}
+    ${lv.preview.css}
+    /* User CSS attempts */
+    ${cssFrags}
+  </style></head><body>
+    ${lv.preview.html}
+    <script>
+    try{${lv.preview.js}}catch(e){}
+    <\/script>
+  </body></html>`;
+
+  const iframe=document.getElementById('preview-iframe');
+  iframe.srcdoc=fullHtml;
+}
+
+/* ══════════════════════════════════════
+   CODE TABS
+══════════════════════════════════════ */
+function updateCodeTabs(){
+  const htmlCode=dropped.html.map(f=>f.code).join('\n') || '<!-- sem patří HTML fragmenty -->';
+  const cssCode=dropped.css.map(f=>f.code).join('\n') || '/* sem patří CSS fragmenty */';
+  const jsCode=dropped.js.map(f=>f.code).join('\n') || '// sem patří JS fragmenty';
+  document.getElementById('code-html').textContent=htmlCode;
+  document.getElementById('code-css').textContent=cssCode;
+  document.getElementById('code-js').textContent=jsCode;
+}
+
+function showCodeTab(cat,tabEl){
+  document.querySelectorAll('.layer-code').forEach(c=>c.classList.remove('visible'));
+  document.querySelectorAll('.layer-tab').forEach(t=>t.classList.remove('active-tab'));
+  document.getElementById('code-'+cat).classList.add('visible');
+  tabEl.classList.add('active-tab');
+}
+
+/* ══════════════════════════════════════
+   CHECK LEVEL
+══════════════════════════════════════ */
+function checkLevel(){
+  const lv=LEVELS[currentLevel];
+  let correct=0,wrong=0;
+
+  document.querySelectorAll('.dropped-chip').forEach(chip=>{
+    const fid=chip.dataset.fid;
+    const frag=lv.fragments.find(f=>f.id===fid);
+    if(!frag)return;
+    const zone=chip.closest('.drop-zone');
+    const zcat=zone.classList.contains('dz-html')?'html':zone.classList.contains('dz-css')?'css':'js';
+    chip.classList.remove('correct','wrong');
+    if(zcat===frag.cat){chip.classList.add('correct');correct++;}
+    else{chip.classList.add('wrong');wrong++;}
+  });
+
+  const total=lv.fragments.length;
+  const isWin=correct===total;
+  const pts=isWin?100:Math.round((correct/total)*60);
+  score+=pts;
+  document.getElementById('topbar-score').textContent=`SKÓRE: ${score}`;
+
+  levelResults.push({level:currentLevel,correct,total,win:isWin});
+
+  // Show result overlay
+  const res=document.getElementById('level-result');
+  document.getElementById('lr-icon').textContent=isWin?'✅':'⚠️';
+  document.getElementById('lr-title').textContent=isWin?'Perfektní!':'Skoro…';
+  document.getElementById('lr-sub').textContent=isWin
+    ?`Všech ${total} fragmentů na správném místě! +${pts} bodů`
+    :`${correct}/${total} správně. Špatné fragmenty jsou označeny červeně.`;
+  document.getElementById('lr-btn-next').textContent=
+    currentLevel+1<LEVELS.length?'Další úroveň →':'Výsledky →';
+
+  // Flash effect
+  flashEffect(isWin?'rgba(0,232,122,0.12)':'rgba(255,45,85,0.12)');
+
+  res.classList.add('show');
+}
+
+function flashEffect(color){
+  const fl=document.getElementById('flash');
+  fl.style.background=color;
+  fl.classList.add('show');
+  setTimeout(()=>fl.classList.remove('show'),350);
+}
+
+function resetLevel(){
+  document.getElementById('level-result').classList.remove('show');
+  // Return all to pool
+  const lv=LEVELS[currentLevel];
+  dropped={html:[],css:[],js:[]};
+  lv.fragments.forEach(f=>{
+    const el=document.getElementById('frag-'+f.id);
+    if(el)el.classList.remove('used');
+  });
+  ['html','css','js'].forEach(cat=>{
+    const dz=document.getElementById('dz-'+cat);
+    Array.from(dz.querySelectorAll('.dropped-chip')).forEach(c=>c.remove());
+    document.getElementById('ph-'+cat).style.display='block';
+  });
+  document.getElementById('btn-check').disabled=true;
+  updatePreview();updateCodeTabs();
+}
+
+function nextLevel(){
+  document.getElementById('level-result').classList.remove('show');
+  if(currentLevel+1<LEVELS.length){
+    currentLevel++;
+    loadLevel(currentLevel);
+  } else {
+    showResults();
+  }
+}
+
+/* ══════════════════════════════════════
+   RESULTS SCREEN
+══════════════════════════════════════ */
+function showResults(){
+  const total=LEVELS.length;
+  const wins=levelResults.filter(r=>r.win).length;
+  let rank='NOVÁČEK',msg='Dobrý začátek! Procvič si základy a zkus to znovu.';
+  if(wins===total){rank='FULL STACK';msg='Absolutní maximum — všechny úrovně s perfektním skóre. Jsi připravený na reálné projekty.';}
+  else if(wins>=3){rank='SENIOR DEV';msg='Výborný výkon. Skoro perfektní — zkus to znovu a získej plný počet bodů.'}
+  else if(wins>=2){rank='JUNIOR DEV';msg='Slušný základ! Některé koncepty ještě potřebují trochu práce, ale jdeš správným směrem.'}
+  else if(wins>=1){rank='TRAINEE';msg='Rozumíš základům, ale HTML, CSS a JS se plete. Procvič si rozdíly mezi nimi.'}
+
+  document.getElementById('res-rank').textContent=rank;
+  document.getElementById('res-score-num').textContent=score;
+  document.getElementById('res-msg').textContent=msg;
+
+  const levContainer=document.getElementById('res-levels');
+  levContainer.innerHTML=LEVELS.map((lv,i)=>{
+    const r=levelResults[i];
+    const stars=r?r.win?'⭐⭐⭐':r.correct>=r.total*.7?'⭐⭐':'⭐':'—';
+    const sc=r?`${r.correct}/${r.total}`:'—';
+    return`<div class="res-level-card">
+      <div class="rlc-title">${lv.title}</div>
+      <div class="rlc-score">${sc}</div>
+      <div class="rlc-star">${stars}</div>
+    </div>`;
+  }).join('');
+
+  switchScreen('game','results');
+}
+
+function fullRestart(){
+  switchScreen('results','intro');
+}
+
+/* ══════════════════════════════════════
+   SCREEN TRANSITIONS
+══════════════════════════════════════ */
+function switchScreen(from,to){
+  document.getElementById(from).classList.remove('on');
+  setTimeout(()=>{document.getElementById(to).classList.add('on');},300);
+}
+</script>
+</body>
+</html>
